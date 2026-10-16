@@ -1,0 +1,11 @@
+services:
+  strict-video:
+    build: .
+    container_name: strict-video-player
+    restart: unless-stopped
+    ports:
+      - "8095:8095"
+    environment:
+      - PORT=8095
+      - HOST=0.0.0.0
+      - SECRET_KEY=strict-video-hmac-secret-key-2026
