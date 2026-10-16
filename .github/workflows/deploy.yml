@@ -1,0 +1,36 @@
+name: Deploy to mustafa-dev
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy to mustafa-dev via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST || '212.64.193.15' }}
+          username: ${{ secrets.SSH_USER || 'locko-admin' }}
+          key: ${{ secrets.SSH_KEY }}
+          passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          script: |
+            set -e
+            echo "🚀 mustafa-dev üzerinde deploy başlatılıyor..."
+            TARGET_DIR="$HOME/strict-video-player"
+            if [ -d "$TARGET_DIR/.git" ]; then
+              cd "$TARGET_DIR"
+              git fetch origin main
+              git reset --hard origin/main
+            else
+              git clone https://github.com/${{ github.repository }}.git "$TARGET_DIR"
+              cd "$TARGET_DIR"
+            fi
+            chmod +x sunucu_baslat.sh
+            bash ./sunucu_baslat.sh 8095
+            echo "✅ Deploy başarıyla tamamlandı!"

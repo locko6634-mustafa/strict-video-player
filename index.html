@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StrictVideo — SCORM & Backend Korumalı Video Doğrulama Platformu</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛡️</text></svg>">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Üst Başlık ve Durum Rozetleri -->
+    <header class="app-header">
+      <div class="brand-row">
+        <h1 class="brand-title">
+          <span>🛡️ StrictVideo</span>
+          <span class="brand-badge">SCORM & Backend Korumalı</span>
+        </h1>
+
+        <div class="security-badges">
+          <div id="badge-focus" class="badge-item active">
+            <span class="badge-dot"></span>
+            <span class="badge-text">Pencere Odakta</span>
+          </div>
+
+          <div id="badge-status" class="badge-item">
+            <span class="badge-dot"></span>
+            <span class="badge-text">Duraklatıldı</span>
+          </div>
+
+          <div id="badge-server-verified" class="badge-item server-badge">
+            <span class="badge-dot"></span>
+            <span class="badge-text">Sunucu Onaylı: 0s / 120s (%0)</span>
+          </div>
+
+          <div class="badge-item active">
+            <span class="badge-dot"></span>
+            <span>Hız: 1.0x (Kilitli)</span>
+          </div>
+
+          <div class="badge-item active">
+            <span class="badge-dot"></span>
+            <span>İleri Sarma: Kapalı</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Dinamik Güvenlik Uyarısı Banner'ı -->
+    <div id="alert-banner" class="alert-banner" role="alert">
+      <div class="alert-content">
+        <span class="alert-icon">⚠️</span>
+        <span id="alert-message">Odak kayboldu! Video otomatik olarak durduruldu.</span>
+      </div>
+      <button id="alert-close-btn" class="alert-dismiss" type="button">Kapat</button>
+    </div>
+
+    <!-- Video Sahnesi ve Özel Kontroller -->
+    <main id="video-stage">
+      <div class="video-wrapper">
+        <video id="secure-video" playsinline preload="metadata" src="assets/sample-video.mp4">
+          Tarayıcınız HTML5 video etiketini desteklemiyor.
+        </video>
+
+        <!-- Güvenlik / Odak Kaybı Katmanı -->
+        <div id="video-overlay" class="video-overlay">
+          <div class="overlay-icon-wrap" id="overlay-icon">🔒</div>
+          <h2 id="overlay-title" class="overlay-title">Odak Kayboldu!</h2>
+          <p id="overlay-desc" class="overlay-desc">
+            Sayfa dışına çıktığınız veya başka bir programa odaklandığınız için video durduruldu. Devam etmek için sayfaya tıklayıp onaylayın.
+          </p>
+          <button id="overlay-btn" class="overlay-action-btn" type="button">Devam Et</button>
+        </div>
+      </div>
+
+      <!-- Katı Kurallı Kontrol Çubuğu -->
+      <div class="player-controls">
+        <div class="progress-container">
+          <div id="progress-rail" class="progress-bar-rail" title="Yalnızca geriye sarmaya izin verilir; ileri sarma engellidir">
+            <div id="progress-watched" class="progress-watched" style="width: 0%;"></div>
+            <div id="progress-fill" class="progress-fill" style="width: 0%;"></div>
+          </div>
+          <div class="progress-restriction-tooltip">
+            <span class="lock-info">🔒 İleri sarma kilitlidir</span>
+            <span id="time-display" class="time-display">00:00 / 02:00</span>
+          </div>
+        </div>
+
+        <div class="controls-row">
+          <div class="controls-left">
+            <button id="btn-play-pause" class="ctrl-btn btn-play-pause" type="button" title="Oynat / Duraklat">▶</button>
+            <button id="btn-rewind" class="ctrl-btn" type="button" title="5 Saniye Geri Sar">↺ 5s</button>
+            <span class="speed-tag" title="Hız değiştirilemez">⚡ 1.0x Kilitli</span>
+          </div>
+
+          <div class="controls-right">
+            <div class="volume-wrapper">
+              <button id="btn-volume" class="ctrl-btn" type="button" title="Sesi Kapat / Aç">🔊</button>
+              <input id="volume-slider" class="volume-slider" type="range" min="0" max="1" step="0.05" value="1" title="Ses Seviyesi">
+            </div>
+            <button id="btn-fullscreen" class="ctrl-btn" type="button" title="Tam Ekran">⛶</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Sertifika Talep Çubuğu (Backend Onaylı) -->
+    <section class="cert-action-bar">
+      <div class="cert-info-wrap">
+        <span class="cert-info-title">🎓 Resmi Başarı Sertifikası (Finansal Okuryazarlık Standardı)</span>
+        <span class="cert-info-sub">Sunucu tarafında tam 120 saniyelik HMAC imzalı izleme kaydı doğrulanmadan sertifika verilmez.</span>
+      </div>
+      <button id="btn-claim-cert" class="btn-claim-cert" type="button">Sertifikayı Talep Et (Sunucu Kontrolü)</button>
+    </section>
+
+    <!-- Siber Güvenlik ve Tersine Mühendislik Test Paneli (Pentest) -->
+    <section class="pentest-card" aria-label="Siber Güvenlik Test Araçları">
+      <div class="pentest-header">
+        <h3 class="pentest-title">
+          <span>🛠️ Tersine Mühendislik & Siber Güvenlik Test Paneli</span>
+        </h3>
+        <span class="pentest-tag">Pentest Modu</span>
+      </div>
+      <div class="pentest-actions">
+        <button id="btn-test-forward" class="btn-pentest" type="button">
+          ⚡ 1. İleri Sarma Hilesi
+          <span>video.currentTime = 110s atamayı dene</span>
+        </button>
+
+        <button id="btn-test-spam" class="btn-pentest" type="button">
+          🚀 2. Heartbeat Bombardımanı
+          <span>8x hızlı sinyal gönder (Rate Limit & Delta Testi)</span>
+        </button>
+
+        <button id="btn-test-fake-cert" class="btn-pentest" type="button">
+          📜 3. Erken Sertifika İsteği
+          <span>Süre dolmadan sertifika iste (403 Backend Testi)</span>
+        </button>
+
+        <button id="btn-test-blur" class="btn-pentest" type="button">
+          👁️ 4. Sekme / Odak Kaybı Simülasyonu
+          <span>window.blur simüle et (Video durdurma testi)</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Canlı Güvenlik Denetim Günlüğü -->
+    <section class="audit-panel" aria-label="Güvenlik Denetim Günlüğü">
+      <div class="panel-header">
+        <h3 class="panel-title">
+          <span>📡 Canlı Güvenlik & Backend SCORM Günlüğü</span>
+        </h3>
+        <div class="panel-actions">
+          <button id="btn-clear-log" class="btn-clear-log" type="button">Temizle</button>
+        </div>
+      </div>
+      <ul id="log-list" class="log-list">
+        <!-- Dinamik loglar buraya eklenir -->
+      </ul>
+    </section>
+  </div>
+
+  <!-- Modal: Resmi Sertifika Görüntüleyici -->
+  <div id="cert-modal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <button id="cert-close-btn" class="modal-close-btn" type="button">&times;</button>
+      <div id="cert-details">
+        <!-- Sertifika detayları buraya dinamik yüklenir -->
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "name": "strict-video-player",
+  "version": "1.0.0",
+  "description": "Katı kurallarla ve Backend SCORM Heartbeat doğrulamasıyla korunan video oynatıcı",
+  "type": "module",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "test": "node tests/test-rules.mjs"
+  },
+  "keywords": [
+    "security",
+    "scorm",
+    "video-integrity",
+    "anti-tampering",
+    "reverse-engineering"
+  ],
+  "author": "Mustafa Ayverdi",
+  "license": "MIT"
+}
