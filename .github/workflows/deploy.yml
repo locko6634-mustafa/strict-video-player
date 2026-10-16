@@ -5,8 +5,13 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+concurrency:
+  group: strict-video-deploy
+  cancel-in-progress: true
+
 jobs:
   deploy:
+    name: Deploy to Live Server
     runs-on: ubuntu-latest
     environment: Deploy
     steps:
@@ -17,10 +22,9 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          fingerprint: ${{ secrets.SERVER_HOST_FINGERPRINT }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
             set -e
             echo "🚀 mustafa-dev üzerinde deploy başlatılıyor..."
