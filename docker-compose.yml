@@ -3,9 +3,25 @@ services:
     build: .
     container_name: strict-video-player
     restart: unless-stopped
-    ports:
-      - "8095:8095"
+    expose:
+      - "8095"
     environment:
       - PORT=8095
       - HOST=0.0.0.0
       - SECRET_KEY=strict-video-hmac-secret-key-2026
+    networks:
+      - edge_proxy
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=edge_proxy"
+      - "traefik.http.routers.strict-video.rule=Host(`strict.n8n-mustafa.me`)"
+      - "traefik.http.routers.strict-video.entrypoints=websecure"
+      - "traefik.http.routers.strict-video.tls=true"
+      - "traefik.http.routers.strict-video.tls.certresolver=mytlschallenge"
+      - "traefik.http.services.strict-video.loadbalancer.server.port=8095"
+
+networks:
+  edge_proxy:
+    external: true
+  default:
