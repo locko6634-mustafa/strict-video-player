@@ -1,9 +1,10 @@
 /**
  * StrictVideo Player UI & Interaction Controller
  * Minimalist, secure video controls strictly enforcing playback restrictions.
+ * Aligned with Video.js & SPK / SPL LMS reference implementations.
  */
 
-export class SafeVideoPlayer {
+export class StrictVideoPlayer {
   constructor(videoElement, containerElement, securityController, options = {}) {
     this.video = videoElement;
     this.container = containerElement;
@@ -33,14 +34,14 @@ export class SafeVideoPlayer {
 
   init() {
     this.bindEvents();
-    this.updateTimeDisplay();
+    this.updatePlaybackDisplay();
   }
 
   bindEvents() {
     const video = this.video;
 
     // Play / Pause toggle
-    this.btnPlayPause.addEventListener('click', () => this.togglePlayPause());
+    this.btnPlayPause.addEventListener('click', () => this.togglePlayback());
     this.overlayBtn.addEventListener('click', () => {
       this.hideOverlay();
       this.play();
@@ -58,7 +59,7 @@ export class SafeVideoPlayer {
 
     // Safe Progress bar interaction
     if (this.progressRail) {
-      this.progressRail.addEventListener('click', (e) => this.handleProgressClick(e));
+      this.progressRail.addEventListener('click', (e) => this.onProgressSeekAttempt(e));
     }
 
     // Volume control
@@ -101,11 +102,11 @@ export class SafeVideoPlayer {
 
     video.addEventListener('timeupdate', () => {
       this.updateProgress();
-      this.updateTimeDisplay();
+      this.updatePlaybackDisplay();
     });
 
     video.addEventListener('loadedmetadata', () => {
-      this.updateTimeDisplay();
+      this.updatePlaybackDisplay();
     });
 
     video.addEventListener('ended', () => {
@@ -117,14 +118,15 @@ export class SafeVideoPlayer {
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && e.target.tagName !== 'BUTTON' && e.target.tagName !== 'INPUT') {
         e.preventDefault();
-        this.togglePlayPause();
+        this.togglePlayback();
       }
     });
   }
 
-  togglePlayPause() {
+  // --- OYNATMA KONTROLÜ (REFERANS: togglePlayback / togglePlayPause) ---
+  togglePlayback() {
     if (!this.security.isPageFocused) {
-      this.security.triggerViolation('Odaklanma Gerekli', 'Videoyu oynatabilmek için sayfa üzerinde olmalısınız.');
+      this.security.handleSecurityViolation('Odaklanma Gerekli', 'Videoyu oynatabilmek için sayfa üzerinde olmalısınız.');
       return;
     }
 
@@ -134,6 +136,9 @@ export class SafeVideoPlayer {
       this.pause();
     }
   }
+
+  // Geriye dönük uyumluluk takma adı
+  togglePlayPause() { return this.togglePlayback(); }
 
   play() {
     if (!this.security.isPageFocused) {
@@ -150,7 +155,8 @@ export class SafeVideoPlayer {
     this.video.pause();
   }
 
-  handleProgressClick(e) {
+  // --- İLERLEME ÇUBUĞU DENETİMİ (REFERANS: onProgressSeekAttempt) ---
+  onProgressSeekAttempt(e) {
     const rect = this.progressRail.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const ratio = Math.max(0, Math.min(1, clickX / rect.width));
@@ -160,7 +166,7 @@ export class SafeVideoPlayer {
     // Sadece mevcut zamandan geriye sarmaya izin ver
     if (targetTime > this.video.currentTime + 0.5) {
       this.onLog('danger', `İleri tıklama engellendi! Hedef: ${this.formatTime(targetTime)}`);
-      this.security.triggerViolation(
+      this.security.handleSecurityViolation(
         'İleri Sarma Koruması!',
         `Video ileri sarılamaz. İzlemek istediğiniz bölümü sırayla tamamlamalısınız.`
       );
@@ -172,6 +178,9 @@ export class SafeVideoPlayer {
     this.security.lastSafeTime = targetTime;
     this.onLog('info', `Geriye sarıldı: ${this.formatTime(targetTime)}`);
   }
+
+  // Geriye dönük uyumluluk takma adı
+  handleProgressClick(e) { return this.onProgressSeekAttempt(e); }
 
   updateProgress() {
     const current = this.video.currentTime || 0;
@@ -187,13 +196,17 @@ export class SafeVideoPlayer {
     }
   }
 
-  updateTimeDisplay() {
+  // --- ZAMAN GÖSTERGESİ (REFERANS: updatePlaybackDisplay) ---
+  updatePlaybackDisplay() {
     const current = this.formatTime(this.video.currentTime || 0);
     const total = this.formatTime(this.video.duration || 120);
     if (this.timeDisplay) {
       this.timeDisplay.textContent = `${current} / ${total}`;
     }
   }
+
+  // Geriye dönük uyumluluk takma adı
+  updateTimeDisplay() { return this.updatePlaybackDisplay(); }
 
   updateVolumeIcon() {
     if (!this.btnVolume) return;
@@ -239,3 +252,6 @@ export class SafeVideoPlayer {
     return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   }
 }
+
+// Geriye dönük uyumluluk sınıf takma adı
+export const SafeVideoPlayer = StrictVideoPlayer;

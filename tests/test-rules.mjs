@@ -167,3 +167,87 @@ test('SecurityController - Odak Kaybında Videoyu Durdurma', () => {
 
   security.destroy();
 });
+
+test('SecurityController - Referans İsimlendirmeleri (onWindowBlur, onVisibilityChange, clampToLastSafeTime)', () => {
+  const video = new MockVideo();
+  video.paused = false;
+  const alerts = [];
+
+  const security = new SecurityController(video, {
+    onSecurityAlert: (alert) => alerts.push(alert)
+  });
+
+  // onWindowBlur kontrolü
+  security.onWindowBlur('Referans sistem blur testi');
+  assert.equal(video.paused, true);
+  assert.equal(security.isPageFocused, false);
+
+  // onWindowFocus kontrolü
+  security.onWindowFocus('Referans sistem focus testi');
+  assert.equal(security.isPageFocused, true);
+
+  // clampToLastSafeTime kontrolü
+  security.lastSafeTime = 10;
+  video._currentTime = 45;
+  security.clampToLastSafeTime(45);
+  assert.equal(video.currentTime, 10, 'Video son güvenli zamana geri dönmelidir');
+  assert.ok(alerts.some(a => a.title.includes('İleri Sarma')), 'İleri sarma engellendi uyarısı verilmelidir');
+
+  security.destroy();
+});
+
+test('Backend SCORM - Kriptografik HMAC ve Segment Doğrulaması', async () => {
+  const {
+    generateSessionHmac,
+    verifySessionHmac,
+    generateSegmentProof,
+    verifySegmentProof,
+    cleanupExpiredSessions,
+    sessions
+  } = await import('../backend/server.js');
+
+  const testSessionId = 'test-session-12345';
+  const token = generateSessionHmac(testSessionId);
+
+  // Token doğrulama
+  assert.equal(verifySessionHmac(testSessionId, token), true);
+  assert.equal(verifySessionHmac(testSessionId, 'invalid-token'), false);
+
+  // Segment proof doğrulama
+  const proof0 = generateSegmentProof(testSessionId, 0);
+  const sessionObj = {
+    sessionId: testSessionId,
+    lastMediaPosition: 0
+  };
+
+  // Geçerli proof ile doğrulama
+  const validProofResult = verifySegmentProof(sessionObj, 5, proof0);
+  assert.equal(validProofResult, true, 'Geçerli segment proof doğrulanmalıdır');
+
+  // Buffer payı dahilinde doğrulama
+  sessionObj.lastMediaPosition = 20;
+  assert.equal(verifySegmentProof(sessionObj, 25, null), true, 'Buffer toleransı içindeki pozisyon geçerli olmalıdır');
+
+  // Ghost stream tespiti (medya çekilmeden ileri pozisyon)
+  sessionObj.lastMediaPosition = 0;
+  assert.equal(verifySegmentProof(sessionObj, 30, 'fake-proof'), false, 'Medya çekilmeden gönderilen proof reddedilmelidir');
+
+  // TTL ve Garbage Collection temizliği
+  const expiredSessionId = 'expired-session-999';
+  sessions.set(expiredSessionId, {
+    sessionId: expiredSessionId,
+    lastActivityAt: Date.now() - (20 * 60 * 1000) // 20 dk önce (TTL 15 dk)
+  });
+  const activeSessionId = 'active-session-111';
+  sessions.set(activeSessionId, {
+    sessionId: activeSessionId,
+    lastActivityAt: Date.now()
+  });
+
+  const purgedCount = cleanupExpiredSessions();
+  assert.ok(purgedCount >= 1, 'Süresi dolan oturum temizlenmelidir');
+  assert.equal(sessions.has(expiredSessionId), false, 'Süresi dolan oturum Map içinde kalmamalıdır');
+  assert.equal(sessions.has(activeSessionId), true, 'Aktif oturum korunmalıdır');
+
+  sessions.delete(activeSessionId);
+});

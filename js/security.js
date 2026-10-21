@@ -1,6 +1,7 @@
 /**
  * StrictVideo Security Controller
  * Manages all anti-tampering, focus tracking, and playback enforcement rules.
+ * Aligned with SPK / SPL SCORM LMS & Video.js reference implementations.
  */
 
 export class SecurityController {
@@ -21,48 +22,34 @@ export class SecurityController {
   }
 
   init() {
-    this.lockPlaybackRate();
-    this.bindFocusEvents();
-    this.bindKeyboardInterception();
-    this.bindContextMenuInterception();
-    this.bindSeekingInterception();
-    this.startDevToolsDetection();
+    this.enforceNormalPlaybackRate();
+    this.setupVisibilityTracking();
+    this.preventRestrictedKeyShortcuts();
+    this.preventContextMenu();
+    this.setupSeekingControl();
+    this.monitorDevToolsStatus();
 
     this.onLog('info', 'Güvenlik modülü aktif: Odak, hız, ileri sarma ve F12 koruması devrede.');
     this.updateFocusStatus(document.hasFocus() && !document.hidden);
   }
 
-  /**
-   * 1. Hız Kilidi (1.0x Sabitleme)
-   * Prototype ve element seviyesinde playbackRate değişimini engeller.
-   */
-  lockPlaybackRate() {
+  // --- 1. HIZ KONTROLÜ (REFERANS: enforceNormalPlaybackRate & onRateChange) ---
+  enforceNormalPlaybackRate() {
     const video = this.video;
 
-    // Default rate
     video.playbackRate = 1.0;
     video.defaultPlaybackRate = 1.0;
 
-    // ratechange olayını dinle ve anında 1.0x'e zorla
-    video.addEventListener('ratechange', () => {
-      if (video.playbackRate !== 1.0) {
-        this.onLog('danger', `Hızlandırma/yavaşlatma girişimi engellendi (${video.playbackRate}x -> 1.0x).`);
-        video.playbackRate = 1.0;
-        this.triggerViolation('Hız Değiştirme Engellendi', 'Video hızı 1.0x olarak kilitlenmiştir.');
-      }
-    });
+    video.addEventListener('ratechange', () => this.onRateChange());
 
-    // Object.defineProperty ile doğrudan koddan değiştirilmesini zorlaştır
     try {
-      let currentRate = 1.0;
       Object.defineProperty(video, 'playbackRate', {
         get: () => 1.0,
         set: (val) => {
           if (val !== 1.0) {
             this.onLog('danger', `playbackRate manipülasyonu engellendi (${val}x).`);
-            this.triggerViolation('Hız Değiştirme Engellendi', 'Video hızı değiştirilemez.');
+            this.handleSecurityViolation('Hız Değiştirme Engellendi', 'Video hızı değiştirilemez.');
           }
-          currentRate = 1.0;
         },
         configurable: true
       });
@@ -71,66 +58,81 @@ export class SecurityController {
     }
   }
 
-  /**
-   * 2. Odak ve Sekme Takibi
-   * Başka sekmeye geçildiğinde veya sayfadan odak ayrıldığında anında durdurur.
-   */
-  bindFocusEvents() {
-    // Sekme görünürlüğü
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) {
-        this.handleFocusLost('Başka bir sekmeye geçildi veya pencere simge durumuna küçültüldü.');
-      } else {
-        this.handleFocusGained('Sekmeye geri dönüldü.');
-      }
-    });
+  onRateChange() {
+    const video = this.video;
+    if (video.playbackRate !== 1.0) {
+      this.onLog('danger', `Hızlandırma/yavaşlatma girişimi engellendi (${video.playbackRate}x -> 1.0x).`);
+      video.playbackRate = 1.0;
+      this.handleSecurityViolation('Hız Değiştirme Engellendi', 'Video hızı 1.0x olarak kilitlenmiştir.');
+    }
+  }
 
-    // Pencere odak kaybı (başka bir programa tıklandığında)
+  // Geriye dönük uyumluluk takma adı
+  lockPlaybackRate() {
+    return this.enforceNormalPlaybackRate();
+  }
+
+  // --- 2. ODAK VE GÖRÜNÜRLÜK TAKİBİ (REFERANS: setupVisibilityTracking) ---
+  setupVisibilityTracking() {
+    // Sekme görünürlüğü
+    document.addEventListener('visibilitychange', () => this.onVisibilityChange());
+
+    // Pencere odak kaybı
     window.addEventListener('blur', () => {
-      this.handleFocusLost('Sayfa dışına tıklandı veya başka bir programa odaklanıldı.');
+      this.onWindowBlur('Sayfa dışına tıklandı veya başka bir programa odaklanıldı.');
     });
 
     // Pencereye geri odaklanma
     window.addEventListener('focus', () => {
-      this.handleFocusGained('Sayfaya tekrar odaklanıldı.');
+      this.onWindowFocus('Sayfaya tekrar odaklanıldı.');
     });
 
-    // Mouse pencereden tamamen çıkınca opsiyonel denetim
+    // Mouse pencereden tamamen çıkınca
     document.addEventListener('mouseleave', () => {
-      // Sadece pencere odakta değilse durdur
       if (!document.hasFocus()) {
-        this.handleFocusLost('İmleç ve odak sayfa dışına çıktı.');
+        this.onWindowBlur('İmleç ve odak sayfa dışına çıktı.');
       }
     });
   }
 
-  handleFocusLost(reason) {
+  onVisibilityChange() {
+    if (document.hidden) {
+      this.onWindowBlur('Başka bir sekmeye geçildi veya pencere simge durumuna küçültüldü.');
+    } else {
+      this.onWindowFocus('Sekmeye geri dönüldü.');
+    }
+  }
+
+  onWindowBlur(reason) {
     this.isPageFocused = false;
     this.updateFocusStatus(false);
 
     if (!this.video.paused) {
       this.video.pause();
       this.onLog('danger', `Odak Kayboldu: ${reason} (Video durduruldu)`);
-      this.triggerViolation('Odak Kayboldu!', `${reason} Devam etmek için sayfaya dönüp Oynat butonuna tıklayın.`);
+      this.handleSecurityViolation('Odak Kayboldu!', `${reason} Devam etmek için sayfaya dönüp Oynat butonuna tıklayın.`);
     } else {
       this.onLog('warning', `Odak Kayboldu: ${reason}`);
     }
   }
 
-  handleFocusGained(message) {
+  onWindowFocus(message) {
     this.isPageFocused = true;
     this.updateFocusStatus(true);
     this.onLog('info', `Odak Sağlandı: ${message}`);
   }
 
+  // Geriye dönük uyumluluk takma adları
+  bindFocusEvents() { return this.setupVisibilityTracking(); }
+  handleFocusLost(reason) { return this.onWindowBlur(reason); }
+  handleFocusGained(message) { return this.onWindowFocus(message); }
+
   updateFocusStatus(focused) {
     this.onFocusChange(focused);
   }
 
-  /**
-   * 3. F12 ve Geliştirici Kısayolları Engelleme
-   */
-  bindKeyboardInterception() {
+  // --- 3. KLAVYE KISAYOLLARI ENGELLEME (REFERANS: preventRestrictedKeyShortcuts) ---
+  preventRestrictedKeyShortcuts() {
     window.addEventListener('keydown', (e) => {
       const isF12 = e.key === 'F12' || e.keyCode === 123;
       const isDevToolsCombo = (e.ctrlKey || e.metaKey) && e.shiftKey && ['I', 'J', 'C', 'i', 'j', 'c'].includes(e.key);
@@ -148,85 +150,84 @@ export class SecurityController {
 
         const shortcutName = isF12 ? 'F12 Tuşu' : isDevToolsCombo ? 'Geliştirici Araçları Kısayolu' : isViewSource ? 'Kaynak Görüntüleme Kısayolu' : 'Kaydetme Kısayolu';
         this.onLog('danger', `${shortcutName} engellendi! (Oynatma durduruldu)`);
-        this.triggerViolation('Yetkisiz Kısayol!', `${shortcutName} kullanımı engellendi. Güvenlik gereği video duraklatıldı.`);
+        this.handleSecurityViolation('Yetkisiz Kısayol!', `${shortcutName} kullanımı engellendi. Güvenlik gereği video duraklatıldı.`);
         return false;
       }
 
-      // Klavye ile ileri sarma tuşlarını engelle
       if (isForwardSeekKey) {
         e.preventDefault();
         e.stopPropagation();
         this.onLog('warning', `Klavye ile ileri sarma engellendi (${e.key}).`);
-        this.triggerViolation('İleri Sarma Engellendi', 'Klavye kısayolları ile videoyu ileri saramazsınız.');
+        this.handleSecurityViolation('İleri Sarma Engellendi', 'Klavye kısayolları ile videoyu ileri saramazsınız.');
         return false;
       }
     }, true);
   }
 
-  /**
-   * 4. Sağ Tık (Context Menu) Engelleme
-   * Kullanıcının 'İncele', 'Video olarak kaydet' veya tarayıcının varsayılan menüsünü açmasını engeller.
-   */
-  bindContextMenuInterception() {
+  // Geriye dönük uyumluluk takma adı
+  bindKeyboardInterception() { return this.preventRestrictedKeyShortcuts(); }
+
+  // --- 4. SAĞ TIK BAĞLAM MENÜSÜ ENGELLEME (REFERANS: preventContextMenu) ---
+  preventContextMenu() {
     window.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       e.stopPropagation();
       this.onLog('warning', 'Sağ tık (Bağlam Menüsü) engellendi.');
-      this.triggerViolation('Sağ Tık Engellendi', 'Güvenlik ilkeleri gereği sağ tık menüsü devre dışıdır.');
+      this.handleSecurityViolation('Sağ Tık Engellendi', 'Güvenlik ilkeleri gereği sağ tık menüsü devre dışıdır.');
       return false;
     });
   }
 
-  /**
-   * 5. İleri Sarma Engelleme (Playback Integrity)
-   * Videonun henüz izlenmemiş bir noktaya veya anlık zamandan ileriye atlanmasını engeller.
-   */
-  bindSeekingInterception() {
+  // Geriye dönük uyumluluk takma adı
+  bindContextMenuInterception() { return this.preventContextMenu(); }
+
+  // --- 5. İLERİ SARMA VE OYNATMA BÜTÜNLÜĞÜ (REFERANS: setupSeekingControl & onSeeking) ---
+  setupSeekingControl() {
     const video = this.video;
-    let isClamping = false;
+    this.isClamping = false;
 
-    // timeupdate sırasında zamanı ve güvenli izleme noktasını güncelle
-    video.addEventListener('timeupdate', () => {
-      const current = video.currentTime;
-
-      // Normal oynatma akışındaysa safeTime'ı ilerlet
-      if (!isClamping && current >= this.lastSafeTime && current - this.lastSafeTime <= 1.0) {
-        this.lastSafeTime = current;
-        if (current > this.maxWatchedTime) {
-          this.maxWatchedTime = current;
-        }
-      }
-    });
-
-    // Seeking olayını denetle
-    video.addEventListener('seeking', () => {
-      if (isClamping) {
-        isClamping = false;
-        return;
-      }
-
-      const targetTime = video.currentTime;
-
-      // Eğer ileriye doğru sıçranmaya çalışılıyorsa:
-      if (targetTime > this.lastSafeTime + 0.35) {
-        // İleri sarmayı engelle ve son güvenli zamana geri çek
-        this.onLog('danger', `İleri sarma engellendi (${this.formatTime(this.lastSafeTime)} -> ${this.formatTime(targetTime)}).`);
-        isClamping = true;
-        video.currentTime = this.lastSafeTime;
-        this.triggerViolation('İleri Sarma Engellendi!', 'Bu video ileri sarılamaz. Kesintisiz izlenmesi gerekmektedir.');
-      } else {
-        // Geri sarmaya izin verildiğinde lastSafeTime geriye çekilir
-        this.lastSafeTime = targetTime;
-        this.onLog('info', `Geriye sarıldı: ${this.formatTime(targetTime)}`);
-      }
-    });
+    video.addEventListener('timeupdate', () => this.onTimeUpdate());
+    video.addEventListener('seeking', () => this.onSeeking());
   }
 
-  /**
-   * 6. DevTools Açılma Tespiti
-   * Pencere boyutu farkı ve debugger zamanlama kontrolleri ile geliştirici araçlarını izler.
-   */
-  startDevToolsDetection() {
+  onTimeUpdate() {
+    const current = this.video.currentTime;
+    if (!this.isClamping && current >= this.lastSafeTime && current - this.lastSafeTime <= 1.0) {
+      this.lastSafeTime = current;
+      if (current > this.maxWatchedTime) {
+        this.maxWatchedTime = current;
+      }
+    }
+  }
+
+  onSeeking() {
+    if (this.isClamping) {
+      this.isClamping = false;
+      return;
+    }
+
+    const targetTime = this.video.currentTime;
+
+    if (targetTime > this.lastSafeTime + 0.35) {
+      this.clampToLastSafeTime(targetTime);
+    } else {
+      this.lastSafeTime = targetTime;
+      this.onLog('info', `Geriye sarıldı: ${this.formatTime(targetTime)}`);
+    }
+  }
+
+  clampToLastSafeTime(targetTime) {
+    this.onLog('danger', `İleri sarma engellendi (${this.formatTime(this.lastSafeTime)} -> ${this.formatTime(targetTime)}).`);
+    this.isClamping = true;
+    this.video.currentTime = this.lastSafeTime;
+    this.handleSecurityViolation('İleri Sarma Engellendi!', 'Bu video ileri sarılamaz. Kesintisiz izlenmesi gerekmektedir.');
+  }
+
+  // Geriye dönük uyumluluk takma adı
+  bindSeekingInterception() { return this.setupSeekingControl(); }
+
+  // --- 6. GELİŞTİRİCİ ARAÇLARI DENETİMİ (REFERANS: monitorDevToolsStatus) ---
+  monitorDevToolsStatus() {
     const checkDevTools = () => {
       const widthDiff = window.outerWidth - window.innerWidth > 160;
       const heightDiff = window.outerHeight - window.innerHeight > 160;
@@ -238,7 +239,7 @@ export class SecurityController {
             this.video.pause();
           }
           this.onLog('danger', 'Geliştirici Araçları (DevTools) açık algılandı! Video durduruldu.');
-          this.triggerViolation('Geliştirici Araçları Algılandı!', 'Geliştirici araçları açıkken video oynatılamaz. Lütfen pencereyi kapatın.');
+          this.handleSecurityViolation('Geliştirici Araçları Algılandı!', 'Geliştirici araçları açıkken video oynatılamaz. Lütfen pencereyi kapatın.');
         }
       } else {
         if (this.devToolsOpen) {
@@ -255,9 +256,15 @@ export class SecurityController {
     }
   }
 
-  triggerViolation(title, description) {
+  // Geriye dönük uyumluluk takma adı
+  startDevToolsDetection() { return this.monitorDevToolsStatus(); }
+
+  handleSecurityViolation(title, description) {
     this.onSecurityAlert({ title, description });
   }
+
+  // Geriye dönük uyumluluk takma adı
+  triggerViolation(title, description) { return this.handleSecurityViolation(title, description); }
 
   formatTime(seconds) {
     const mins = Math.floor(seconds / 60);

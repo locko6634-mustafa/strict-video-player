@@ -69,7 +69,6 @@ git push origin main
 
 ## 5. Ajanlar İçin Kesin Kurallar
 
-1. **Dil Kuralı:** Kullanıcı ile iletişim ve dokümanlar her zaman **Türkçe** olmalıdır.
-2. **Backend Kuralı:** Backend dili kesinlikle **Node.js 22+ (ESM)** olmalıdır. Python veya başka bir çalışma zamanı eklenemez.
-3. **Commit ve Push Disiplini:** Değişiklikler açık dosya yollarıyla stage edilmeli (`git add path/to/file`), anlamlı commit mesajları yazılmalı ve doğrulanmadan push edilmemelidir.
-4. **SSH MCP Kuralı:** Sunucu işlemleri `ssh-mcp` ad alanı ve `mustafa-dev` profili ile yürütülmeli; `ssh-mcp-dugun` (`mustafa-prod`) ile asla karıştırılmamalıdır.
+1. **Backend Kuralı:** Backend dili kesinlikle **Node.js 22+ (ESM)** olmalıdır. Python veya başka bir çalışma zamanı eklenemez.
+2. **Commit ve Push Disiplini:** Değişiklikler açık dosya yollarıyla stage edilmeli (`git add path/to/file`), anlamlı commit mesajları yazılmalı ve doğrulanmadan push edilmemelidir.
+3. **SSH MCP Kuralı:** Sunucu işlemleri `ssh-mcp` ad alanı ve `mustafa-dev` profili ile yürütülmeli.

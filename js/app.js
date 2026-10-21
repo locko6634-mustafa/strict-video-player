@@ -1,6 +1,6 @@
 import { SecurityController } from './security.js';
-import { SafeVideoPlayer } from './player.js';
-import { HeartbeatClient } from './heartbeat.js';
+import { StrictVideoPlayer, SafeVideoPlayer } from './player.js';
+import { ScormLmsClient, HeartbeatClient } from './heartbeat.js';
 
 document.addEventListener('DOMContentLoaded', () => {
   const videoElement = document.getElementById('secure-video');
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 1. Güvenlik Kontrolcüsü Başlat
+  // 1. Güvenlik Kontrolcüsü Başlat (SPK / SPL Standart Video Güvenlik Katmanı)
   const security = new SecurityController(videoElement, {
     onSecurityAlert: ({ title, description }) => {
       showAlert(title, description);
@@ -100,8 +100,8 @@ document.addEventListener('DOMContentLoaded', () => {
     onLog: (type, msg) => appendLog(type, msg)
   });
 
-  // 2. Güvenli Oynatıcı Kontrolcüsü Başlat
-  const player = new SafeVideoPlayer(videoElement, stageElement, security, {
+  // 2. Güvenli Oynatıcı Kontrolcüsü Başlat (Video.js Uyumlu Oynatıcı)
+  const player = new StrictVideoPlayer(videoElement, stageElement, security, {
     onStateChange: (state) => {
       if (badgeStatus) {
         if (state === 'playing') {
@@ -116,8 +116,8 @@ document.addEventListener('DOMContentLoaded', () => {
     onLog: (type, msg) => appendLog(type, msg)
   });
 
-  // 3. Backend SCORM Heartbeat İstemcisi Başlat
-  const heartbeat = new HeartbeatClient(videoElement, security, {
+  // 3. Backend SCORM 1.2 / 2004 LMS İstemcisi Başlat (LMSInitialize / LMSCommit)
+  const scormClient = new ScormLmsClient(videoElement, security, {
     onStatusUpdate: ({ verifiedSeconds, totalDuration, percentage, isCompleted }) => {
       if (badgeServerVerified) {
         badgeServerVerified.querySelector('.badge-text').textContent = `Sunucu Onaylı: ${verifiedSeconds}s / ${totalDuration}s (%${percentage})`;
@@ -135,16 +135,16 @@ document.addEventListener('DOMContentLoaded', () => {
     },
     onLog: (type, msg) => appendLog(type, msg),
     onViolation: (data) => {
-      showAlert('Sunucu Kural İhlali Tespit Etti!', data.error);
+      showAlert('SCORM Kural İhlali Tespit Edildi!', data.error);
     }
   });
 
-  // 4. Sertifika Talep Butonu
+  // 4. Sertifika Talep Butonu (LMSFinish)
   if (btnClaimCert) {
     btnClaimCert.addEventListener('click', async () => {
       try {
-        appendLog('info', 'Sunucudan resmi sertifika talep ediliyor...');
-        const cert = await heartbeat.claimCertificate('Mustafa Ayverdi (Öğrenci / Güvenlik Araştırmacısı)');
+        appendLog('info', 'Sunucudan resmi sertifika talep ediliyor (LMSFinish)...');
+        const cert = await scormClient.LMSFinish('Mustafa Ayverdi (Öğrenci / Güvenlik Araştırmacısı)');
 
         // Sertifika Modalı Göster
         if (certModal && certDetails) {
@@ -187,15 +187,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnTestSpam) {
     btnTestSpam.addEventListener('click', () => {
-      heartbeat.testSpamHeartbeats(8);
+      scormClient.testSpamHeartbeats(8);
     });
   }
 
   if (btnTestFakeCert) {
     btnTestFakeCert.addEventListener('click', async () => {
-      appendLog('warning', '[Pentest]: Erken sertifika talep isteği gönderiliyor...');
+      appendLog('warning', '[Pentest]: Erken sertifika talep isteği (LMSFinish) gönderiliyor...');
       try {
-        await heartbeat.claimCertificate('Hile Girişimi');
+        await scormClient.LMSFinish('Hile Girişimi');
       } catch (err) {
         showAlert('Backend Saldırıyı Engelledi!', err.message);
         appendLog('danger', `[Beklenen Engel]: ${err.message}`);
@@ -210,5 +210,5 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  appendLog('success', 'Katı kurallı video sistemi ve Backend SCORM motoru hazır.');
+  appendLog('success', 'Katı kurallı video sistemi ve SCORM 1.2 / 2004 motoru hazır.');
 });

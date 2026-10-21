@@ -59,7 +59,9 @@
     <!-- Video Sahnesi ve Özel Kontroller -->
     <main id="video-stage">
       <div class="video-wrapper">
-        <video id="secure-video" playsinline preload="metadata" src="assets/sample-video.mp4">
+        <video id="secure-video" playsinline preload="metadata">
+          <source src="assets/hls/playlist.m3u8" type="application/vnd.apple.mpegurl">
+          <source src="assets/sample-video.mp4" type="video/mp4">
           Tarayıcınız HTML5 video etiketini desteklemiyor.
         </video>
 
